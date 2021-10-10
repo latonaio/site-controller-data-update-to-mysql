@@ -1,0 +1,14 @@
+pkgname="models"
+output="app/models"
+[mysql]
+  dbname = xxxxxx
+  host   = xxx.xxx.xxx.xxx
+  port   = xxxxx
+  user   = xxxxx
+  pass   = xxxxx
+  sslmode= "false"
+  blacklist = [
+     "audio_settings", "payment_detail", "payment_detail_transaction", "payment_transaction", "price_table", "room_maintenance"
+  ]
+
+# sqlboiler mysql --output app/models 
