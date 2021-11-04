@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"site-controller-data-update-to-mysql/app/server/response"
-	"site-controller-data-update-to-mysql/pkg"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -14,8 +13,6 @@ var wsupgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 }
-
-var sugar = pkg.NewSugaredLogger()
 
 func (h *SCHandler) WsConnect(c *gin.Context, channel chan []int) {
 	conn, err := wsupgrader.Upgrade(c.Writer, c.Request, nil)
@@ -31,7 +28,7 @@ END:
 		case errorRowIds := <-channel:
 			rows, err := h.db.SelectErrorCSVRowsWithIds(errorRowIds, c.Request.Context(), tx)
 			if err != nil {
-				sugar.Error("cannot get csv error rows")
+				logging.Error("cannot get csv error rows", nil)
 				break END
 			}
 			row := rows[0]
@@ -48,15 +45,11 @@ END:
 
 			res, err := json.Marshal(responseStruct)
 			if err != nil {
-				sugar.Error(err)
+				logging.Error(err, nil)
 				break END
 			}
 			conn.WriteMessage(websocket.BinaryMessage, res)
 		}
-		// t, msg, err := conn.ReadMessage()
-		// if err != nil {
-		// 	break
-		// }
 	}
 }
 

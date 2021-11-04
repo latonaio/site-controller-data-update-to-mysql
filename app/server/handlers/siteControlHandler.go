@@ -6,15 +6,15 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
-	"strings"
-	"time"
 	"site-controller-data-update-to-mysql/app/database"
 	"site-controller-data-update-to-mysql/app/file"
 	"site-controller-data-update-to-mysql/app/models"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/latonaio/golang-logging-library/logger"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
-	"go.uber.org/zap"
 )
 
 const (
@@ -29,13 +29,15 @@ type errors struct {
 
 type SCHandler struct {
 	db  *database.Database
-	log *zap.SugaredLogger
+	log *logger.Logger
 }
 
-func NewSCHandler(db *database.Database, logger *zap.SugaredLogger) *SCHandler {
+var logging = logger.NewLogger()
+
+func NewSCHandler(db *database.Database, logging *logger.Logger) *SCHandler {
 	return &SCHandler{
 		db:  db,
-		log: logger,
+		log: logging,
 	}
 }
 
@@ -43,7 +45,7 @@ func (h *SCHandler) GetAuthCSV(c *gin.Context) {
 	timestamp := c.Param("timestamp")
 	rows, err := h.db.GetCsvUploadTransactionByTimeStamp(c.Request.Context(), timestamp)
 	if err != nil {
-		h.log.Errorf("database error: %+v", err)
+		h.log.Error(fmt.Sprintf("database error: %+v", err), nil)
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "before"})
 		return
 	}
@@ -60,7 +62,7 @@ func (h *SCHandler) CSVError(c *gin.Context) {
 	// ステータスが未解決（0)のCSVエラー情報を取得する
 	rows, err := h.db.GetCsvExecutionErrorsWithCsvUploadTransactionByStatus(c.Request.Context(), 0)
 	if err != nil {
-		sugar.Errorf("cannot get csv error rows: %v", err)
+		logging.Error(fmt.Sprintf("cannot get csv error rows: %v", err), nil)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": []errors{}})
 		return
 	}
@@ -90,21 +92,22 @@ func (h *SCHandler) UpdateErrorStatus(c *gin.Context) {
 	// ステータスが未解決（0)のレコードを取得する
 	rows, err := h.db.GetCsvExecutionErrorsByStatus(c.Request.Context(), 0)
 	if err != nil {
-		sugar.Errorf("failed to get csv_excution_error: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"timestamp": nil}) // TODO 返却値をよく考えること
+		logging.Error(fmt.Sprintf("failed to get csv_excution_error: %v", err), nil)
+
+		c.JSON(http.StatusInternalServerError, gin.H{"timestamp": nil})
 		return
 	}
-	h.log.Debugf("csv_excution_error record: %p", rows)
+	h.log.Debug(fmt.Sprintf("csv_excution_error record: %p", rows), nil)
 	if len(rows) == 0 {
-		h.log.Debug("no error csv")
+		h.log.Debug("no error csv", nil)
 		c.JSON(http.StatusOK, gin.H{"timestamp": nil})
 		return
 	}
 
 	_, err = rows.UpdateAll(c, h.db.DB, models.M{"status": 1})
 	if err != nil {
-		sugar.Errorf("failed to get csv_excution_error: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"timestamp": nil}) // TODO 返却値をよく考えること
+		logging.Error(fmt.Sprintf("failed to get csv_excution_error: %v", err), nil)
+		c.JSON(http.StatusInternalServerError, gin.H{"timestamp": nil})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"timestamp": nil})
@@ -114,7 +117,7 @@ func (h *SCHandler) CreateCSV(c *gin.Context) {
 	timestamp := c.Param("timestamp")
 	siteControllerName := c.Query("SC")
 	if siteControllerName == "" {
-		h.log.Errorf("failed to get site controller name")
+		h.log.Error("failed to get site controller name", nil)
 		c.String(http.StatusBadRequest, "BAD REQUEST")
 		return
 	}
@@ -123,16 +126,16 @@ func (h *SCHandler) CreateCSV(c *gin.Context) {
 	// リクエストの情報を出力
 	body, err := httputil.DumpRequest(c.Request, true)
 	if err != nil {
-		h.log.Errorf("failed to bind request body: %v", err)
+		h.log.Error(fmt.Sprintf("failed to bind request body: %v", err), nil)
 		c.String(http.StatusInternalServerError, "INTERNAL SERVER ERROR")
 		return
 	}
-	h.log.Debugf("req body: %v", body)
+	h.log.Debug(fmt.Sprintf("req body: %v", body), nil)
 
 	// "file"というフィールド名に一致するファイルが出力される
 	formFile, _, err := c.Request.FormFile("file")
 	if err != nil {
-		h.log.Errorf("failed to get file: %v", err)
+		h.log.Error(fmt.Sprintf("failed to get file: %v", err), nil)
 		c.String(http.StatusInternalServerError, "INTERNAL SERVER ERROR")
 		return
 	}
@@ -147,7 +150,7 @@ func (h *SCHandler) CreateCSV(c *gin.Context) {
 	filePath := fmt.Sprintf("%v/%v_%v.csv", CONSARVATION_PATH, trimmedDefaultFileName, timestamp)
 	saveFile, err := os.Create(filePath)
 	if err != nil {
-		h.log.Errorf("failed to save file: %v", err)
+		h.log.Error(fmt.Sprintf("failed to save file: %v", err), nil)
 		c.String(http.StatusInternalServerError, "INTERNAL SERVER ERROR")
 		return
 	}
@@ -156,7 +159,7 @@ func (h *SCHandler) CreateCSV(c *gin.Context) {
 	// ファイルにデータを書き込む
 	_, err = io.Copy(saveFile, formFile)
 	if err != nil {
-		sugar.Errorf("failed to copy file: %+v", err)
+		logging.Error(fmt.Sprintf("failed to copy file: %+v", err), nil)
 		c.String(http.StatusInternalServerError, "INTERNAL SERVER ERROR")
 		return
 	}
@@ -164,7 +167,7 @@ func (h *SCHandler) CreateCSV(c *gin.Context) {
 	// ファイルのデータをDBに突っ込む
 	fileInfo, err := saveFile.Stat()
 	if err != nil {
-		sugar.Errorf("failed to get file info: %+v", err)
+		logging.Error(fmt.Sprintf("failed to get file info: %+v", err), nil)
 		c.String(http.StatusInternalServerError, "INTERNAL SERVER ERROR")
 		return
 	}
@@ -174,13 +177,15 @@ func (h *SCHandler) CreateCSV(c *gin.Context) {
 	}
 	model, err := h.db.CreateCsvUploadTransaction(ctx, file.Name, time.Time{}, timestamp, filePath)
 	if err != nil {
-		sugar.Errorf("failed to insert record to database: %+v", err)
+		logging.Error(fmt.Sprintf("failed to insert record to database: %+v", err), nil)
+
 		c.String(http.StatusInternalServerError, "INTERNAL SERVER ERROR")
 		return
 	}
 
 	if err := h.db.RegisterCSVDataToDB(ctx, file, CONSARVATION_PATH, model.ID, siteControllerName); err != nil {
-		sugar.Error(err)
+		logging.Error(err, nil)
+
 		c.String(http.StatusInternalServerError, "INTERNAL SERVER ERROR")
 		return
 	}
@@ -196,21 +201,22 @@ func (h *SCHandler) GetLatestTimestamp(c *gin.Context) {
 		qm.OrderBy("timestamp DESC"),
 	).One(ctx, h.db.DB)
 	if err != nil {
-		sugar.Errorf("failed to get csv_upload_transaction: %v", err)
+		logging.Error(fmt.Sprintf("failed to get csv_upload_transaction: %v", err), nil)
 		c.JSON(http.StatusInternalServerError, gin.H{"timestamp": nil})
 		return
 	}
-	sugar.Debugf("csv_upload_transaction record: %p", row)
+	logging.Debug(fmt.Sprintf("csv_upload_transaction record: %p", row), nil)
 	if row == nil {
-		sugar.Info("no csv information")
+		logging.Info("no csv information", nil)
 		c.JSON(http.StatusOK, gin.H{"timestamp": nil})
 		return
 	}
 
 	timestampStr := row.Timestamp.String
-	h.log.Info(timestampStr)
+	h.log.Info(timestampStr, nil)
 	timestampVal := fmt.Sprintf(`%s/%s/%s %s:%s:%s`, timestampStr[0:4], timestampStr[4:6], timestampStr[6:8], timestampStr[8:10], timestampStr[10:12], timestampStr[12:14])
-	sugar.Infof("latest timestamp: %s", timestampVal)
+	logging.Info(fmt.Sprintf("latest timestamp: %s", timestampVal), nil)
+
 	c.JSON(http.StatusOK, gin.H{"timestamp": timestampVal})
 	return
 }

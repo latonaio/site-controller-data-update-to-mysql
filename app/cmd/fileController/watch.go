@@ -2,24 +2,25 @@ package fileController
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
-	"syscall"
-	"time"
 	"site-controller-data-update-to-mysql/app/database"
 	"site-controller-data-update-to-mysql/app/file"
 	"site-controller-data-update-to-mysql/config"
-	"site-controller-data-update-to-mysql/pkg"
+	"syscall"
+	"time"
+
+	"github.com/latonaio/golang-logging-library/logger"
 )
 
-var sugar = pkg.NewSugaredLogger()
+var logging = logger.NewLogger()
 
 func Watch(ctx context.Context, list chan<- file.Files, done <-chan bool, db *database.Database, env *config.WatchEnv) {
-	sugar.Info("created watch go routine")
+	logging.Info("created watch go routine", nil)
 	// DBから最新のファイルの作成情報を取得する
 	rows, err := db.GetCSVUpdateTransaction(ctx)
 	if err != nil {
-		// log.Errorf("%w", err)
 	}
 	var latestFileCreatedTime time.Time
 	if len(rows) > 0 {
@@ -39,15 +40,15 @@ func Watch(ctx context.Context, list chan<- file.Files, done <-chan bool, db *da
 	for {
 		select {
 		case s := <-signalCh:
-			sugar.Infof("received signal: %s", s.String())
+			logging.Info(fmt.Sprintf("received signal: %s", s.String()), nil)
+
 			return
 		case <-ticker.C:
-			sugar.Infof("start watch %s", env.MountPath)
-			// ファイルリストの取得
-			sugar.Infof("latest file created time: %v", latestFileCreatedTime)
+			logging.Info(fmt.Sprintf("start watch %s ", env.MountPath), nil)
+			logging.Info(fmt.Sprintf("latest file created time: %v", latestFileCreatedTime), nil)
+
 			newFileList, err := file.GetFileList(&latestFileCreatedTime, env.MountPath)
 			if err != nil {
-				// log.Errorf("cannot get file list in %v: %v", watchDirPath, err)
 				goto L
 			}
 
@@ -64,8 +65,9 @@ func Watch(ctx context.Context, list chan<- file.Files, done <-chan bool, db *da
 			goto END
 		}
 	L:
-		sugar.Infof("finish watch %s", env.MountPath)
+		logging.Info(fmt.Sprintf("finish watch %s", env.MountPath), nil)
+
 	}
 END:
-	sugar.Info("finish Watch goroutine")
+	logging.Info("finish Watch goroutine", nil)
 }

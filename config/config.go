@@ -21,8 +21,8 @@ type MysqlEnv struct {
 }
 
 type WatchEnv struct {
-	PollingInterval int
-	MountPath       string
+	PollingInterval xxxx
+	MountPath       xxxx
 }
 
 // NewEnv 必ずEnv構造体は返る、POLLING_INTERVALに数字が入っていない場合にエラーが返る
@@ -62,7 +62,7 @@ func NewWatchEnv() (*WatchEnv, error) {
 }
 
 func (c *MysqlEnv) DSN() string {
-	return fmt.Sprintf(`%v:%v@tcp(%v:%v)/%s?charset=utf8mb4&parseTime=True&loc=Local`, c.User, c.Password, c.Host, c.Port, "xxxx")
+	return fmt.Sprintf(`%v:%v@tcp(%v:%v)/%s?charset=utf8mb4&parseTime=True&loc=Local`, c.User, c.Password, c.Host, c.Port, "xxxxx")
 }
 
 func GetEnv(key, def string) string {

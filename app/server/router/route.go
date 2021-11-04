@@ -3,14 +3,14 @@ package router
 import (
 	"fmt"
 	"log"
-	"time"
 	"site-controller-data-update-to-mysql/app/database"
 	"site-controller-data-update-to-mysql/app/server/handlers"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"go.uber.org/zap"
+	"github.com/latonaio/golang-logging-library/logger"
 )
 
 type Server struct {
@@ -18,10 +18,10 @@ type Server struct {
 	ws   *websocket.Upgrader
 	port string
 	db   *database.Database
-	log  *zap.SugaredLogger
+	log  *logger.Logger
 }
 
-func NewServer(port string, db *database.Database, logger *zap.SugaredLogger) *Server {
+func NewServer(port string, db *database.Database, logging *logger.Logger) *Server {
 	return &Server{
 		gin: gin.New(),
 		ws: &websocket.Upgrader{
@@ -36,7 +36,7 @@ func NewServer(port string, db *database.Database, logger *zap.SugaredLogger) *S
 		},
 		port: fmt.Sprintf(`:%v`, port),
 		db:   db,
-		log:  logger,
+		log:  logging,
 	}
 }
 

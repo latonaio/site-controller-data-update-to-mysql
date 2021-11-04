@@ -10,14 +10,13 @@ import (
 	"site-controller-data-update-to-mysql/app/file"
 	"site-controller-data-update-to-mysql/app/server/router"
 	"site-controller-data-update-to-mysql/config"
-	"site-controller-data-update-to-mysql/pkg"
 
-	"go.uber.org/zap"
+	"github.com/latonaio/golang-logging-library/logger"
 )
 
-func Server(port string, db *database.Database, logger *zap.SugaredLogger) {
+func Server(port string, db *database.Database, logging *logger.Logger) {
 	// Server構造体作成
-	s := router.NewServer(port, db, logger)
+	s := router.NewServer(port, db, logging)
 	// Route実行
 	s.Route()
 	// Server実行
@@ -25,14 +24,7 @@ func Server(port string, db *database.Database, logger *zap.SugaredLogger) {
 }
 
 func main() {
-	sugar := pkg.NewSugaredLogger()
-	defer func(sugar *zap.SugaredLogger) {
-		err := sugar.Sync()
-		if err != nil {
-			fmt.Printf("failed to flush sugar: %v", err)
-		}
-	}(sugar)
-
+	var logging = logger.NewLogger()
 	ctx := context.Background()
 	// // Watch内で、新しいファイルが生成されるまで待機させる。
 	listAuto := make(chan file.Files)
@@ -40,11 +32,11 @@ func main() {
 	// DB構造体作成
 	env, err := config.NewEnv()
 	if err != nil {
-		sugar.Warnf("NewEnv error: %+v", err)
+		logging.Warn(fmt.Sprintf("NewEnv error: %+v", err), nil)
 	}
 	db, err := database.NewDatabase(env.MysqlEnv)
 	if err != nil {
-		sugar.Errorf("failed to create database: %+v", err)
+		logging.Error(fmt.Sprintf("failed to create database: %+v", err), nil)
 		return
 	}
 	// mainを終了させるためのチャネル
@@ -59,23 +51,23 @@ func main() {
 	go fileController.Watch(ctx, listAuto, done, db, env.WatchEnv)
 
 	// HTTPサーバを立てる
-	go Server(env.Port, db, sugar)
+	go Server(env.Port, db, logging)
 
 	for {
 		select {
 		// 自動登録
 		case newFileList := <-listAuto:
 			for _, file := range newFileList {
-				sugar.Infof("target fileName: %v\n", file.Name)
+				logging.Info(fmt.Sprintf("target fileName: %v\n", file.Name), nil)
 
 				// csv登録...status＝before
 				model, err := db.CreateCsvUploadTransaction(ctx, file.Name, file.CreatedTime, "", "")
 				if err != nil {
-					sugar.Errorf("failed to insert record to database: %v", err)
+					logging.Error(fmt.Sprintf("failed to insert record to database: %v", err), nil)
 				}
 
 				if err := db.RegisterCSVDataToDB(ctx, *file, env.MountPath, model.ID, siteControllerName); err != nil {
-					sugar.Error(err)
+					logging.Error(err, nil)
 				}
 			}
 		case <-quit:
@@ -84,5 +76,6 @@ func main() {
 	}
 END:
 	done <- true
-	sugar.Info("finish main function")
+	logging.Info("finish main function", nil)
+
 }

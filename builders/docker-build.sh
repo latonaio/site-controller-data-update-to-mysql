@@ -4,8 +4,8 @@ SCRIPT_DIR=$(cd $(dirname $0); pwd)
 
 PUSH=$1
 DATE="$(date "+%Y%m%d%H%M")"
-REPOSITORY_NAME="xxxxxx"
-IMAGE_NAME="ui-backend-for-omotebako-site-controller"
+REPOSITORY_NAME="xxxx"
+IMAGE_NAME="site-controller-data-update-to-mysql"
 DOCKERFILE_DIR=${SCRIPT_DIR}/../
 DOCKERFILE_NAME="Dockerfile"
 

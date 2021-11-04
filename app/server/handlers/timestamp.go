@@ -21,20 +21,21 @@ func GetLatestTimestamp(c *gin.Context, db *database.Database) {
 		qm.OrderBy("timestamp DESC"),
 	).One(ctx, db.DB)
 	if err != nil {
-		sugar.Errorf("failed to get csv_upload_transaction: %v", err)
+		logging.Error(fmt.Sprintf("failed to get csv_upload_transaction: %v", err), nil)
 		c.JSON(http.StatusInternalServerError, gin.H{"timestamp": nil})
 		return
 	}
-	sugar.Debugf("csv_upload_transaction record: %p", row)
+	logging.Debug(fmt.Sprintf("csv_upload_transaction record: %p", row), nil)
 	if row == nil {
-		sugar.Info("no csv information")
+		logging.Info("no csv information", nil)
+
 		c.JSON(http.StatusOK, gin.H{"timestamp": nil})
 		return
 	}
 
 	timestampStr := row.Timestamp.String
 	timestampVal := fmt.Sprintf(`%s/%s/%s %s:%s:%s`, timestampStr[0:4], timestampStr[4:6], timestampStr[6:8], timestampStr[8:10], timestampStr[10:12], timestampStr[12:14])
-	sugar.Infof("latest timestamp: %s", timestampVal)
+	logging.Info(fmt.Sprintf("latest timestamp: %s", timestampVal), nil)
 	c.JSON(http.StatusOK, gin.H{"timestamp": timestampVal})
 	return
 }

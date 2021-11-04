@@ -2,8 +2,8 @@ package server
 
 import (
 	"fmt"
-	"time"
 	"site-controller-data-update-to-mysql/app/server/handlers"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"

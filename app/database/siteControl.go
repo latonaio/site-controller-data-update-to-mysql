@@ -4,18 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
-	"time"
 	scCsv "site-controller-data-update-to-mysql/app/csv"
 	"site-controller-data-update-to-mysql/app/file"
 	"site-controller-data-update-to-mysql/app/helper"
 	"site-controller-data-update-to-mysql/app/models"
-	"site-controller-data-update-to-mysql/pkg"
+	"strings"
+	"time"
 
 	"github.com/volatiletech/null/v8"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
 	"golang.org/x/xerrors"
+
+	"github.com/latonaio/golang-logging-library/logger"
 )
 
 type reservationGuest struct {
@@ -25,12 +26,12 @@ type reservationGuest struct {
 }
 
 type ErrorStruct struct {
-	CustomerName        string
-	CustomerPhoneNumber string
-	ErrorMsg            string
+	CustomerName        xxxx
+	CustomerPhoneNumber xxxx
+	ErrorMsg            xxxx
 }
 
-var sugar = pkg.NewSugaredLogger()
+var logging = logger.NewLogger()
 
 func (d *Database) TransactionReservationInfo(reservations []*scCsv.ReservationData, ctx context.Context) (map[int]ErrorStruct, error) {
 	var reservationGuests []*reservationGuest
@@ -84,7 +85,6 @@ func (d *Database) TransactionReservationInfo(reservations []*scCsv.ReservationD
 		}
 	}
 
-	// エラーが１件でも存在したらその情報を返す
 	if len(errorMap) != 0 {
 		return errorMap, nil
 	}
@@ -128,49 +128,44 @@ func (d *Database) GetCsvExecutionErrorsByStatus(ctx context.Context, status int
 func (d *Database) addReservationInfoToDB(reservation *scCsv.ReservationData, tx *sql.Tx, ctx context.Context) (*reservationGuest, error) {
 	currentTime := time.Now()
 	newReservationGuest := reservationGuest{
-		//ReservationID:   0,
-		//GuestID:         0,
 		ReservationData: reservation,
 	}
 
 	stayDateFrom, err := checkInTime(reservation)
 	if err != nil {
-		sugar.Errorf("failed to parse reservationDate: %v\n", err)
-		// エラーメッセージ：チェックイン日エラー
+		logging.Error(fmt.Sprintf("failed to parse reservationDate: %v\n", err), nil)
 		return &newReservationGuest, fmt.Errorf("チェックイン日が不正か入力されていません。")
 	}
 
 	stayDateTo, err := time.Parse("20060102", reservation.StayDateTo)
 	if err != nil {
-		sugar.Errorf("failed to parse stayDateTo: %v\n", err)
-		// エラーメッセージ：チェックアウト日エラー
+		logging.Error(fmt.Sprintf("failed to parse stayDateTo: %v\n", err), nil)
+
 		return &newReservationGuest, fmt.Errorf("チェックアウト日が不正か入力されていません。")
 	}
 
 	reservationDate, err := time.Parse("20060102", reservation.ReservatioinDate)
 	if err != nil {
-		sugar.Errorf("failed to parse reservationDate: %v\n", err)
-		// エラーメッセージ：予約受信日エラー
+		logging.Error(fmt.Sprintf("failed to parse reservationDate: %v\n", err), nil)
 		return &newReservationGuest, fmt.Errorf("予約受信日が不正か入力されていません。")
 	}
 
 	reservationMethodId, err := checkReservationMethod(reservation, ctx, tx)
 	if err != nil {
-		sugar.Errorf("invalid reservation method: %v", err)
-		// エラーメッセージ：予約経路エラー
+		logging.Error(fmt.Sprintf("invalid reservation method: %v", err), nil)
 		return &newReservationGuest, fmt.Errorf("予約経路が不正か入力されていません。")
 	}
 
 	paymentMethodId, err := checkPaymentMethod(reservation.PaymentMethodName, ctx, tx)
 	if err != nil {
-		sugar.Errorf("failed to insert payment method error: %v", err)
+		logging.Error(fmt.Sprintf("failed to insert payment method error: %v", err), nil)
 	}
 
 	planId := checkProductMaster(reservation.ProductCode, reservation.ProductName, ctx, tx)
 
 	if Results := validateReservationData(reservation); Results != nil {
-		sugar.Errorf("validation reservation data error: %v", Results)
-		//	エラーメッセージ：validation エラー
+		logging.Error(fmt.Sprintf("validation reservation data error: %v", Results), nil)
+
 		ResultsStr := fmt.Sprint(strings.Join(Results, ", "))
 		return &newReservationGuest, fmt.Errorf("必要な項目が入力されていません。: %v", ResultsStr)
 	}
@@ -179,8 +174,6 @@ func (d *Database) addReservationInfoToDB(reservation *scCsv.ReservationData, tx
 
 	// Insert reservationの準備
 	newReservation := models.Reservation{
-		// ReservationID:         int
-		//GuestID:               null.IntFrom(newGuests.GuestID),
 		ReservationHolder:     null.StringFrom(reservation.ReservationHolder),
 		ReservationHolderKana: null.StringFrom(reservation.ReservationHolderKana),
 		StayDateFrom:          null.TimeFrom(stayDateFrom),
@@ -192,7 +185,7 @@ func (d *Database) addReservationInfoToDB(reservation *scCsv.ReservationData, tx
 		NumberOfGuestsFemale:  null.Int16From(reservation.NumberOfGuestsFemale),
 		HasChild:              null.Int8From(checkChild(reservation)),
 		ProductID:             null.StringFromPtr(planId),
-		ReservationMethod:     null.IntFrom(reservationMethodId), 
+		ReservationMethod:     null.IntFrom(reservationMethodId),
 		PaymentMethod:         null.IntFrom(paymentMethodId),
 		Coupon:                null.IntFrom(0), //【要検討】0:未, 1:有, 2:無
 		// StatusCode:            null.Int8From(0),   // default:0が指定される
@@ -206,8 +199,8 @@ func (d *Database) addReservationInfoToDB(reservation *scCsv.ReservationData, tx
 	}
 
 	if guest == nil {
-		//	新規顧客
-		sugar.Info("新規顧客")
+		logging.Info("新規顧客", nil)
+
 		// Insert guest
 		newGuests := models.Guest{
 			// GuestID:       int
@@ -229,16 +222,14 @@ func (d *Database) addReservationInfoToDB(reservation *scCsv.ReservationData, tx
 			// DeleteFlag:    null.Int8From(0),  // default: 0
 		}
 		if err := newGuests.Insert(ctx, tx, boil.Infer()); err != nil {
-			sugar.Errorf("failed to insert Guset record: %v", err)
-			// エラーメッセージ：顧客登録エラー
+			logging.Error(fmt.Sprintf("failed to insert Guset record: %v", err), nil)
 			return &newReservationGuest, fmt.Errorf("顧客情報の登録に失敗しました。")
 		}
 
 		//
 		newReservation.GuestID = null.IntFrom(newGuests.GuestID)
 	} else {
-		//	既存顧客
-		sugar.Infof("既存顧客 guest_id: %d", guest.GuestID)
+		logging.Info(fmt.Sprintf("既存顧客 guest_id: %d", guest.GuestID), nil)
 		guest.GuestEmail = null.StringFrom(reservation.Email)
 		guest.PhoneNumber = null.StringFrom(reservation.PhoneNumber)
 		guest.PostalCode = null.StringFrom(helper.PostalCodeFormat(reservation.PostalCode))
@@ -250,8 +241,7 @@ func (d *Database) addReservationInfoToDB(reservation *scCsv.ReservationData, tx
 			models.GuestColumns.PostalCode,
 			models.GuestColumns.HomeAddress,
 		)); err != nil {
-			sugar.Errorf("failed to update Guset record: %v", err)
-			// エラーメッセージ：顧客更新エラー
+			logging.Error(fmt.Sprintf("failed to update Guset record: %v", err), nil)
 			return &newReservationGuest, fmt.Errorf("顧客情報の更新に失敗しました。")
 		}
 
@@ -260,22 +250,19 @@ func (d *Database) addReservationInfoToDB(reservation *scCsv.ReservationData, tx
 	}
 
 	if err := newReservation.Insert(ctx, tx, boil.Infer()); err != nil {
-		sugar.Errorf("failed to insert Reservation record: %v", err)
-		// エラーメッセージ：予約登録エラー
+		logging.Error(fmt.Sprintf("failed to insert Reservation record: %v", err), nil)
 		return &newReservationGuest, fmt.Errorf("予約情報の登録に失敗しました。")
 	}
-	sugar.Infof("added reservation ID: %v, Name: %v\n", newReservation.GuestID, newReservation.ReservationHolder)
+	logging.Info(fmt.Sprintf("add reservation ID: %v, Name: %v\n", newReservation.GuestID, newReservation.ReservationHolder), "csv")
 	newReservationGuest = reservationGuest{
 		ReservationID:   newReservation.ReservationID,
 		ReservationData: reservation,
 	}
-	sugar.Debugf("reservation guest: %v", newReservationGuest)
-
+	logging.Debug(fmt.Sprintf("reservation guest: %v", newReservationGuest), nil)
 	return &newReservationGuest, nil
 }
 
 func deleteReservationInfoFromDB(reservation *scCsv.ReservationData, reservationGuests []*reservationGuest, tx *sql.Tx, ctx context.Context) error {
-	// Set updating columns
 	updCols := map[string]interface{}{
 		models.ReservationColumns.DeleteFlag: 1,
 	}
@@ -287,11 +274,10 @@ func deleteReservationInfoFromDB(reservation *scCsv.ReservationData, reservation
 
 	query := qm.Where(models.ReservationColumns.ReservationID+"=?", targetID)
 
-	// update!
 	_, err = models.Reservations(query).UpdateAll(ctx, tx, updCols)
 	if err != nil {
-		sugar.Errorf("failed to update reservation delete flag: %v", err)
-		// エラーメッセージ：reservationのdelete_flag更新エラー
+		logging.Error(fmt.Sprintf("failed to update reservation delete flag: %v", err), nil)
+
 		return fmt.Errorf("予約のキャンセルに失敗しました。")
 	}
 
@@ -300,13 +286,11 @@ func deleteReservationInfoFromDB(reservation *scCsv.ReservationData, reservation
 
 func selectDeleteReservationID(reservation *scCsv.ReservationData, reservationGuests []*reservationGuest, tx *sql.Tx, ctx context.Context) (int, error) {
 	if Results := validateDeleteReservationData(reservation); Results != nil {
-		sugar.Errorf("validation delete reservation data error: %v", Results)
-		//	エラーメッセージ：validation エラー
+		logging.Error(fmt.Sprintf("validation delete reservation data error: %v", Results), nil)
 		ResultsStr := fmt.Sprint(strings.Join(Results, ", "))
 		return 0, fmt.Errorf("必要な項目が入力されていません。: %v", ResultsStr)
 	}
 
-	// 団体者名、電話番号、住所 → guestIDの特定
 	queries_guest := []qm.QueryMod{
 		//qm.Select("guest_id"),
 		qm.Where(models.GuestColumns.Name+"=?", reservation.Name),
@@ -316,23 +300,21 @@ func selectDeleteReservationID(reservation *scCsv.ReservationData, reservationGu
 	}
 	guests, err := models.Guests(queries_guest...).All(ctx, tx)
 	if err != nil {
-		sugar.Errorf("failed to get guest records: %v", err)
+		logging.Error(fmt.Sprintf("failed to get guest records: %v", err), nil)
+
 		return 0, fmt.Errorf("キャンセルする顧客の取得に失敗しました。")
 	}
 
 	// WhereIn method needs to pass a slice of interface{}
 	var guestIDs []interface{}
 	for _, v := range guests {
-		sugar.Debugf("guestID: %d", v.GuestID)
+		logging.Debug(fmt.Sprintf("guestID: %d", v.GuestID), nil)
 		guestIDs = append(guestIDs, v.GuestID)
 	}
 
 	// guest_id, stayDateFrom, stayDateTo　→　reservationIdの特定
 	queries_reservation := []qm.QueryMod{
 		qm.WhereIn(models.ReservationColumns.GuestID+" IN ?", guestIDs),
-		// qm.And(models.ReservationColumns.ReservationHolder+"=?", reservation.ReservationHolder),
-		// qm.And(models.ReservationColumns.ReservationHolderKana+"=?", reservation.ReservationHolderKana),
-		// qm.And(models.ReservationColumns.StayDateFrom+"=?", reservation.StayDateFrom+reservation.CheckInTime),  //
 		qm.And(models.ReservationColumns.StayDateTo+"=?", reservation.StayDateTo),
 		qm.And(models.ReservationColumns.StayDays+"=?", reservation.StayDays),
 		qm.And(models.ReservationColumns.NumberOfRooms+"=?", reservation.NumberOfRooms),
@@ -341,34 +323,32 @@ func selectDeleteReservationID(reservation *scCsv.ReservationData, reservationGu
 
 	counts, err := models.Reservations(queries_reservation...).Count(ctx, tx)
 	if counts == 0 {
-		sugar.Debug("No reservation")
+		logging.Debug("No reservation", nil)
 		for _, reservationGuest := range reservationGuests {
-			sugar.Debugf("reservationGuest: %v, %v, %v", reservationGuest.Name, reservationGuest.NameKana, reservationGuest.PhoneNumber)
+			logging.Debug(fmt.Sprintf("reservationGuest: %v, %v, %v", reservationGuest.Name, reservationGuest.NameKana, reservationGuest.PhoneNumber), nil)
 			if reservation.Name == reservationGuest.Name && reservation.NameKana == reservationGuest.NameKana && reservation.PhoneNumber == reservationGuest.PhoneNumber {
 				return reservationGuest.ReservationID, nil
 			}
 		}
-		sugar.Errorf("no reservation, name: %s, phone number: %s", reservation.Name, reservation.PhoneNumber)
-		// エラーメッセージ：キャンセル予約が登録されていない
+		logging.Error(fmt.Sprintf("no reservation, name: %s, phone number: %s", reservation.Name, reservation.PhoneNumber), nil)
+
 		return 0, fmt.Errorf("キャンセルする予約が登録されていません。")
 	} else if counts > 1 {
-		sugar.Errorf("multiple reservations exist, name: %v, phone number: %v", reservation.Name, reservation.PhoneNumber)
-		// エラーメッセージ：キャンセル予約が複数登録されている
+		logging.Error(fmt.Sprintf("multiple reservations exist, name: %v, phone number: %v", reservation.Name, reservation.PhoneNumber), nil)
+
 		return 0, fmt.Errorf("キャンセルする同一予約が複数登録されています。")
 	} else if err != nil {
-		sugar.Errorf("cannot detect delete reservationID: %v\n", err)
-		// エラーメッセージ：キャンセル予約を特定できなかった
+		logging.Error(fmt.Sprintf("cannot detect delete reservationID: %v\n", err), nil)
 		return 0, fmt.Errorf("キャンセルする予約を特定できませんでした。")
 	}
 
 	reservationId, err := models.Reservations(queries_reservation...).All(ctx, tx)
 	if err != nil {
-		sugar.Errorf("failed to get reservation ID: %v", err)
+		logging.Error(fmt.Sprintf("failed to get reservation ID: %v", err), nil)
 		// エラーメッセージ：reservationのgetエラー
 		return 0, fmt.Errorf("キャンセルする予約の取得に失敗しました。")
 	}
-	sugar.Infof("delete ReservationID: %v, Name: %v\n", reservationId[0].ReservationID, reservationId[0].ReservationHolder)
-
+	logging.Info(fmt.Sprintf("delete ReservationID: %v, Name: %v\n", reservationId[0].ReservationID, reservationId[0].ReservationHolder), nil)
 	return reservationId[0].ReservationID, nil
 }
 
@@ -383,8 +363,8 @@ func (d *Database) SelectErrorCSVRowsWithIds(csvIds []int, ctx context.Context, 
 	// 	qm.Select("*"),
 	// 	qm.From("csv_execution_errors"),
 	// 	qm.InnerJoin("csv_upload_transaction on csv_upload_transaction.id = csv_execution_errors.csv_id"),
-	// 	// qm.WhereIn(models.CSVExecutionErrorColumns.ID+" IN ?", csvIds),
-	// 	// qm.WhereIn(fmt.Sprintf("%s in ?", models.CSVExecutionErrorColumns.ID), ids...),
+	// 	   qm.WhereIn(models.CSVExecutionErrorColumns.ID+" IN ?", csvIds),
+	// 	   qm.WhereIn(fmt.Sprintf("%s in ?", models.CSVExecutionErrorColumns.ID), ids...),
 	// }
 	rows, err := models.CSVExecutionErrors(qm.InnerJoin("csv_upload_transaction on csv_upload_transaction.id = csv_execution_errors.csv_id")).All(ctx, tx)
 	if err != nil {
@@ -399,8 +379,7 @@ func (d *Database) SelectErrorCSVRowsWithIds(csvIds []int, ctx context.Context, 
 }
 
 func (d *Database) RegisterCSVDataToDB(ctx context.Context, file file.File, path string, id int, siteControllerName string) error {
-	// サイトコントローラー名
-	sugar.Infof("site controller name is %s", siteControllerName)
+	logging.Info(fmt.Sprintf("site ControllerName: %v ", siteControllerName), "controller_name")
 
 	// トランザクション：insertReservation, insertGuest
 	csvPath := fmt.Sprintf("%s/%s", path, file.Name)
@@ -410,10 +389,8 @@ func (d *Database) RegisterCSVDataToDB(ctx context.Context, file file.File, path
 	case "xxxx":
 		reservations, err = scCsv.ImportFromLincoln(csvPath)
 	case "xxxx":
-		// TODO xxxx用のインポート関数を作る
 		reservations, err = scCsv.ImportFromLincoln(csvPath)
 	case "xxxx":
-		// TODO xxxx用のインポート関数を作る
 		reservations, err = scCsv.ImportFromLincoln(csvPath)
 	default:
 		return xerrors.Errorf("site controller name '%s' is not available", siteControllerName)
@@ -432,19 +409,20 @@ func (d *Database) RegisterCSVDataToDB(ctx context.Context, file file.File, path
 		if err := d.finishCsvUpload(id, ctx); err != nil {
 			return fmt.Errorf("failed to upload csv_upload_transaction status: %v", err)
 		} else {
-			sugar.Info("successful of csv uploading")
+			logging.Info("successful of csv uploading", nil)
 		}
 	} else {
 		// トランザクションERROR...csvステータスをerrorに変える
 		if err := d.updateCsvUploadTransactionStatusToError(id, ctx); err != nil {
 			return fmt.Errorf("failed to upload csv_upload_transaction status: %v", err)
 		} else {
-			sugar.Info("failed to upload csv")
+			logging.Info("failed to upload csv", nil)
+
 		}
 		// csv_execution_errorにerror内容を入れる
 		// TODO 戻り値のidsをチャネル使ってwebsocketに渡す
 		ids := d.InsertCSVExecutionError(ctx, errors, id)
-		sugar.Debugf("error ids: %v", ids)
+		logging.Debug(fmt.Sprintf("error ids: %v", ids), nil)
 	}
 	return nil
 }
@@ -529,7 +507,7 @@ func (d *Database) InsertCSVExecutionError(ctx context.Context, mapError map[int
 		}
 
 		if err := newCSVExecutionError.Insert(ctx, d.DB, boil.Infer()); err != nil {
-			sugar.Errorf("failed to insert new record to csv_execution_errors: line number: %d, error message: %v", i+1, err)
+			logging.Error(fmt.Sprintf("failed to insert new record to csv_execution_errors: line number: %d, error message: %v", i+1, err), nil)
 		}
 
 		// ID = 0はDB insertエラーを表します

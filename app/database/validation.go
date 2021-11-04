@@ -3,10 +3,10 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"time"
 	scCsv "site-controller-data-update-to-mysql/app/csv"
 	"site-controller-data-update-to-mysql/app/helper"
 	"site-controller-data-update-to-mysql/app/models"
+	"time"
 
 	"context"
 
@@ -44,7 +44,7 @@ func checkPaymentMethod(paymentMethodName string, ctx context.Context, tx *sql.T
 	if paymentMethodName != "" {
 		id, err := getPaymentMethod(paymentMethodName, ctx, tx)
 		if err != nil {
-			sugar.Infof("failed to get payment method error: %v", err)
+			logging.Info(fmt.Sprintf("failed to get payment method error: %v", err), nil)
 		}
 		if id == 0 {
 			id, err = insertPaymentMethod(paymentMethodName, ctx, tx)
@@ -57,7 +57,7 @@ func checkPaymentMethod(paymentMethodName string, ctx context.Context, tx *sql.T
 	}
 	id, err := getPaymentMethod("指定なし", ctx, tx)
 	if err != nil {
-		sugar.Infof("failed to get payment method id correspond to '指定なし' error: %v", err)
+		logging.Info(fmt.Sprintf("failed to get payment method id correspond to '指定なし' error: %v", err), nil)
 	}
 	return id, nil
 }
@@ -90,15 +90,17 @@ func checkReservationMethod(reservation *scCsv.ReservationData, ctx context.Cont
 	if reservation.SalesAgentShopName != "" {
 		id, err := getReservationMethod(reservation.SalesAgentShopName, ctx, tx)
 		if err != nil {
-			sugar.Infof("failed to get reservation method error: %v", err)
+			logging.Info(fmt.Sprintf("failed to get reservation method error: %v", err), nil)
 		}
 		if id == 0 {
-			// sugar.Debug("start inserting reservation method master")
+			logging.Debug("start inserting reservation method master", nil)
+
 			id, err = insertReservationMethod(reservation.SalesAgentShopName, ctx, tx)
 			if err != nil {
 				return 0, err
 			}
-			// sugar.Debug("finish inserting reservation method master")
+			logging.Debug("finish inserting reservation method master", nil)
+
 			return id, nil
 		}
 		return id, nil
@@ -137,7 +139,7 @@ func checkProductMaster(productId, productName string, ctx context.Context, tx *
 	}
 	planId, err := getProductMaster(productId, productName, ctx, tx)
 	if err != nil {
-		sugar.Infof("failed to get product master error: %v", err)
+		logging.Info(fmt.Sprintf("failed to get product master error: %v", err), nil)
 	}
 	return planId
 }
@@ -202,7 +204,7 @@ func checkNewGuest(reservation *scCsv.ReservationData, ctx context.Context, tx *
 		qm.And(models.GuestColumns.PhoneNumber+" = ? or "+models.GuestColumns.PostalCode+" = ?", reservation.PhoneNumber, helper.PostalCodeFormat(reservation.PostalCode)),
 	).One(ctx, tx)
 	if err != nil {
-		sugar.Infof("failed to check new guest error: %v", err)
+		logging.Info(fmt.Sprintf("failed to check new guest error: %v", err), nil)
 	}
 	if guestRecord == nil {
 		return nil

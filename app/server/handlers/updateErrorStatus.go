@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"site-controller-data-update-to-mysql/app/database"
 	"site-controller-data-update-to-mysql/app/models"
@@ -13,21 +14,22 @@ func UpdateErrorStatus(c *gin.Context, db *database.Database) {
 		models.CSVExecutionErrorWhere.Status.EQ(0),
 	).All(c, db.DB)
 	if err != nil {
-		sugar.Errorf("failed to get csv_excution_error: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"timestamp": nil}) // TODO 返却値をよく考えること
+		logging.Error(fmt.Sprintf("failed to get csv_excution_error: %v", err), nil)
+		c.JSON(http.StatusInternalServerError, gin.H{"timestamp": nil})
 		return
 	}
-	sugar.Debugf("csv_excution_error record: %p", rows)
+	logging.Debug(fmt.Sprintf("csv_excution_error record: %p", rows), nil)
+
 	if len(rows) == 0 {
-		sugar.Info("no error csv")
+		logging.Info("no error csv", nil)
 		c.JSON(http.StatusOK, gin.H{"timestamp": nil})
 		return
 	}
 
 	_, err = rows.UpdateAll(c, db.DB, models.M{"status": 1})
 	if err != nil {
-		sugar.Errorf("failed to get csv_excution_error: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"timestamp": nil}) // TODO 返却値をよく考えること
+		logging.Error(fmt.Sprintf("failed to get csv_excution_error: %v", err), nil)
+		c.JSON(http.StatusInternalServerError, gin.H{"timestamp": nil})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"timestamp": nil})

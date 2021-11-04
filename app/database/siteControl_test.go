@@ -3,10 +3,10 @@ package database
 import (
 	"context"
 	"fmt"
-	"testing"
-	"time"
 	scCsv "site-controller-data-update-to-mysql/app/csv"
 	"site-controller-data-update-to-mysql/config"
+	"testing"
+	"time"
 
 	"github.com/golang/glog"
 )
@@ -1280,27 +1280,22 @@ func TestTransaction(t *testing.T) {
 				t.Errorf("failed to insert record to database: %v", err)
 			}
 
-			// トランザクション：insertReservation, insertGuest
 			errors, err := db.TransactionReservationInfo(tt.reservationData, ctx)
 
-			// トランザクションOK...csvステータスをcompleteに変える
 			if err == nil && errors == nil {
 				if err := db.finishCsvUpload(model.ID, ctx); err != nil {
 					t.Errorf("failed to upload csv_upload_transaction status: %v", err)
 				} else {
-					sugar.Info("successful of csv uploading")
+					logging.Info("successful of csv uploading", nil)
 				}
 			} else {
-				// トランザクションERROR...csvステータスをerrorに変える
 				if err := db.updateCsvUploadTransactionStatusToError(id, ctx); err != nil {
 					t.Errorf("failed to upload csv_upload_transaction status: %v", err)
 				} else {
-					sugar.Info("failed to upload csv")
+					logging.Info("failed to upload csv", nil)
 				}
-				// csv_execution_errorにerror内容を入れる
-				// TODO 戻り値のidsをチャネル使ってwebsocketに渡す
 				ids := db.InsertCSVExecutionError(ctx, errors, id)
-				sugar.Infof("error ids: %v", ids)
+				logging.Info(fmt.Sprintf("error ids: %v", ids), nil)
 			}
 		})
 	}
@@ -1320,19 +1315,8 @@ func TestSelectErrorCSVRows(t *testing.T) {
 		return
 	}
 
-	// error_csvを取得
-	//csvIds := []int{1, 2}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	//tx, _ := db.DB.Begin()
-	// tx.Exec("Insert into csv_upload_transaction (status, created_time_in_windows, file_name) values ('error', '2021-07-19 03:17:24', 'リンカーン_CSV_異常系.csv');")
-	// tx.Commit()
-	// rows, err := tx.Query("select * from csv_upload_transaction;")
-	// fmt.Printf("%+v", rows)
-	// tx.Exec("Insert into csv_execution_errors (line_number, customer_name, customer_phone_number, error_message, status, csv_id) values (2, '異常系テスト２', '9076758298', 'error', 0, 1);")
-	// tx.Commit()
-	//tx, _ = db.DB.Begin()
 	t.Run("test", func(t *testing.T) {
 		rows, err := db.GetCsvExecutionErrorsWithCsvUploadTransactionByStatus(ctx, 0)
 		if err != nil {
