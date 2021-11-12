@@ -3,7 +3,7 @@ module site-controller-data-update-to-mysql
 go 1.16
 
 require (
-	github.com/latonaio/golang-logging-library v0.0.0-20211104021948-47f87e339b37
+	github.com/latonaio/golang-logging-library v1.0.0
 	github.com/friendsofgo/errors v0.9.2
 	github.com/gin-contrib/cors v1.3.1
 	github.com/gin-gonic/gin v1.7.2
